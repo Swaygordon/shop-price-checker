@@ -1,18 +1,17 @@
 // Integration contract. The frontend only talks to a backend through these two interfaces.
-// services/mock/* implements them now; services/api/* will implement them for the real backend.
+// services/api/* implements them against Supabase (products table, product-images bucket, Supabase Auth).
+
+export type WeightUnit = 'g' | 'kg' | 'ml' | 'l' | 'pieces';
 
 export type Product = {
   id: string
   name: string
-  description: string
-  quantity: string      // free text, e.g. "12 pack"
-  weight: string        // e.g. "5 kg"
-  size: string          // e.g. "Large"
-  colour: string        // e.g. "White"
-  price: number         // 2 decimal places, >= 0
-  image_url: string     // absolute URL or ''
-  created_at?: string   // ISO
-  updated_at?: string   // ISO
+  size?: number           // e.g. '240', '1.5', '500'
+  unit?: WeightUnit       // e.g. 'g', 'kg', 'ml', 'l', 'pieces'
+  price: number | null    // 2 d.p. (e.g. 25.00 [null if unpriced])
+  image_url: string       // absolute URL or ''
+  created_at?: string     // ISO
+  updated_at?: string     // ISO
 }
 
 export type NewProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>

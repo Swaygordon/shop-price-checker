@@ -36,7 +36,7 @@ export default function ProductGrid({ products, status, error, onRetry, query, o
   if (products.length === 0) {
     return query ? (
       <Notice icon={PackageSearch} title={`No items match “${query}”`}>
-        <p className="text-sm text-muted-foreground">Try a different name, size or colour.</p>
+        <p className="text-sm text-muted-foreground">Try a different name or size.</p>
         <Button variant="outline" onClick={onClear}>Clear search</Button>
       </Notice>
     ) : (

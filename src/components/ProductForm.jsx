@@ -8,23 +8,24 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormField } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { productsApi } from '@/services'
+
+const UNITS = ['g', 'kg', 'ml', 'l', 'pieces']
+
+const nonNegative = (v) => v.trim() === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0)
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(80, 'Keep it under 80 characters'),
   price: z
     .string()
-    .min(1, 'Price is required')
-    .refine((v) => !Number.isNaN(Number(v)) && Number(v) >= 0, 'Enter a price of 0 or more'),
-  description: z.string().max(200, 'Keep it under 200 characters'),
-  quantity: z.string().max(40),
-  weight: z.string().max(40),
-  size: z.string().max(40),
-  colour: z.string().max(40),
+    .refine(nonNegative, 'Enter a price of 0 or more')
+    .refine((v) => v.trim() !== '', 'Price is required'),
+  size: z.string().refine(nonNegative, 'Enter a size of 0 or more'),
+  unit: z.string().refine((v) => v === '' || UNITS.includes(v), 'Pick a unit'),
 })
 
-const defaults = { name: '', price: '', description: '', quantity: '', weight: '', size: '', colour: '' }
+const defaults = { name: '', price: '', size: '', unit: '' }
 
 export default function ProductForm({ onCreated }) {
   const form = useForm({ resolver: zodResolver(schema), defaultValues: defaults })
@@ -48,7 +49,13 @@ export default function ProductForm({ onCreated }) {
   async function onSubmit(values) {
     try {
       const image_url = file ? await productsApi.uploadImage(file) : ''
-      const row = await productsApi.create({ ...values, price: Number(values.price), image_url })
+      const row = await productsApi.create({
+        name: values.name,
+        price: Number(values.price),
+        size: values.size.trim() === '' ? null : Number(values.size),
+        unit: values.unit || null,
+        image_url,
+      })
       onCreated(row)
       toast.success(`Added “${row.name}”`)
       form.reset(defaults)
@@ -58,12 +65,12 @@ export default function ProductForm({ onCreated }) {
     }
   }
 
-  const text = (name, label, placeholder, className) => (
+  const text = (name, label, placeholder, className, type, extra) => (
     <FormField
       name={name}
       label={label}
       className={className}
-      render={({ field }) => <Input placeholder={placeholder} {...field} />}
+      render={({ field }) => <Input type={type} placeholder={placeholder} {...extra} {...field} />}
     />
   )
 
@@ -77,18 +84,27 @@ export default function ProductForm({ onCreated }) {
             <FormField
               name="price"
               label="Price"
-              render={({ field }) => <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" {...field} />}
+              render={({ field }) => (
+                <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" {...field} />
+              )}
             />
+            {text('size', 'Size', 'e.g. 5', undefined, 'number', { min: '0', step: 'any', inputMode: 'decimal' })}
             <FormField
-              name="description"
-              label="Description"
-              className="sm:col-span-2"
-              render={({ field }) => <Textarea rows={2} placeholder="Short description" {...field} />}
+              name="unit"
+              label="Unit"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id={field.id} aria-invalid={field['aria-invalid']} className="w-full">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             />
-            {text('quantity', 'Quantity', 'e.g. 12 pack')}
-            {text('weight', 'Weight', 'e.g. 5 kg')}
-            {text('size', 'Size', 'e.g. Large')}
-            {text('colour', 'Colour', 'e.g. White')}
 
             <div className="grid gap-2 sm:col-span-2">
               <label htmlFor="image" className="text-sm font-bold">Image</label>

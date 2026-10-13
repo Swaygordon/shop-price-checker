@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import ProductGrid from '@/components/ProductGrid'
 import { useProducts } from '@/hooks/useProducts'
 
-const FIELDS = ['name', 'description', 'colour', 'size', 'weight', 'quantity']
+const haystack = (p) => `${p.name} ${p.size ?? ''} ${p.unit ?? ''}`.toLowerCase()
 
 export default function Home() {
   const { products, status, error, reload } = useProducts()
@@ -12,7 +12,7 @@ export default function Home() {
   const q = rawQ.toLowerCase()
 
   const results = useMemo(
-    () => (q ? products.filter((p) => FIELDS.some((f) => p[f]?.toLowerCase().includes(q))) : products),
+    () => (q ? products.filter((p) => haystack(p).includes(q)) : products),
     [products, q]
   )
 
