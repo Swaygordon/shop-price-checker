@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import DeleteDialog from '@/components/DeleteDialog'
 import PriceEditor from '@/components/PriceEditor'
@@ -10,21 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useProducts } from '@/hooks/useProducts'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatSize } from '@/lib/format'
 import { productsApi } from '@/services'
 
 const sortByName = (a, b) => a.name.localeCompare(b.name)
+const priceOrFloor = (p) => (p.price ?? -1)
 
 const SORT_OPTIONS = {
   'name-asc': { label: 'Name: A to Z', compare: sortByName },
   'name-desc': { label: 'Name: Z to A', compare: (a, b) => sortByName(b, a) },
   'price-desc': {
     label: 'Price: High to low',
-    compare: (a, b) => b.price - a.price || sortByName(a, b),
+    compare: (a, b) => priceOrFloor(b) - priceOrFloor(a) || sortByName(a, b),
   },
   'price-asc': {
     label: 'Price: Low to high',
-    compare: (a, b) => a.price - b.price || sortByName(a, b),
+    compare: (a, b) => priceOrFloor(a) - priceOrFloor(b) || sortByName(a, b),
   },
 }
 
@@ -127,7 +128,7 @@ export default function Admin() {
                         <TableCell><ProductImage src={p.image_url} name={p.name} className="size-12 rounded-xl" letterClass="text-2xl" /></TableCell>
                         <TableCell>
                           <div className="font-bold">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">{[p.quantity, p.weight].filter(Boolean).join(' · ')}</div>
+                          <div className="text-xs text-muted-foreground">{formatSize(p.size, p.unit)}</div>
                         </TableCell>
                         <TableCell className="font-display text-xl tracking-wide">{formatPrice(p.price)}</TableCell>
                         <TableCell><PriceEditor key={`${p.id}-${p.price}`} product={p} onSave={(price) => savePrice(p, price)} /></TableCell>

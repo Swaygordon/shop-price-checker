@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatSize } from '@/lib/format'
 
 export function ProductImage({ src, name, className = '', letterClass = 'text-6xl' }) {
   return (
@@ -18,8 +18,8 @@ export function ProductImage({ src, name, className = '', letterClass = 'text-6x
 }
 
 export default function ProductCard({ product }) {
-  const { name, description, quantity, weight, size, colour, price, image_url } = product
-  const specs = [quantity, weight, size, colour].filter(Boolean)
+  const { name, size, unit, price, image_url } = product
+  const specs = [formatSize(size, unit)].filter(Boolean)
 
   return (
     <Card className="gap-0 rounded-sm overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(43,27,14,0.12)]">
@@ -27,7 +27,6 @@ export default function ProductCard({ product }) {
 
       <div className="flex flex-1 flex-col gap-2.5 p-4">
         <h3 className="text-[1.65rem] leading-[1.05]">{name}</h3>
-        {description && <p className="line-clamp-2 text-sm text-foreground/85">{description}</p>}
 
         {specs.length > 0 && (
           <ul className="flex flex-wrap gap-1.5">

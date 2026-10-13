@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input'
 
 /** Inline price edit. onSave(price) must return a promise. Parent keys this on product.price to reset it. */
 export default function PriceEditor({ product, onSave }) {
-  const [value, setValue] = useState(String(product.price))
+  const [value, setValue] = useState(product.price == null ? '' : String(product.price))
   const [busy, setBusy] = useState(false)
 
   const num = Number(value)
-  const valid = value !== '' && num >= 0
-  const dirty = valid && num !== Number(product.price)
+  const valid = value !== '' && !Number.isNaN(num) && num >= 0
+  const dirty = valid && num !== (product.price ?? null)
 
   async function submit(e) {
     e.preventDefault()

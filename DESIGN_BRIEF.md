@@ -1,7 +1,7 @@
 # Shop Price Checker: Design Brief (v2, frontend-first)
 
 Internal price-lookup web app for a grocery/supermarket. Staff-facing catalogue + owner-only admin.
-**Scope of this phase: frontend only.** The backend is being built by a separate developer; this project ships against a simulated backend and is integrated later through a fixed service contract (§5).
+**Backend: Supabase** (products table, `product-images` storage bucket, Supabase Auth) — the frontend talks to it only through the service contract (§5).
 Stack: React + Vite + Tailwind CSS + shadcn/ui (custom-themed). Palette from "Honey Bond / Bare Love".
 
 ---
@@ -35,8 +35,8 @@ Attendants don't always know an item's current price, and the owner changes pric
 | ID | Requirement | Priority |
 |---|---|---|
 | F1 | Navbar: brand, search input + search button, Owner login / Admin / Logout | Must |
-| F2 | Product grid of cards: image, name, description (quantity, weight, size, colour), price | Must |
-| F3 | Search filters by name, description, colour, size, weight, quantity (case-insensitive) | Must |
+| F2 | Product grid of cards: image, name, size/unit, price | Must |
+| F3 | Search filters by name, size and unit (case-insensitive) | Must |
 | F4 | Login page (owner only; no public sign-up) | Must |
 | F5 | Protected `/admin` route | Must |
 | F6 | Add / edit price / delete product | Must |
@@ -48,13 +48,13 @@ Attendants don't always know an item's current price, and the owner changes pric
 - Loads < 2s on 3G-class connections; images lazy-loaded.
 - Responsive: 360px phone → desktop.
 - WCAG AA contrast (honey/cream pairs need dark ink text; see §3.1).
-- Swapping mock → real backend must require **no changes to components or pages**, only to the service layer.
+- Swapping or changing the backend must require **no changes to components or pages**, only to the service layer.
 
 ### 1.7 Out of scope (this phase)
-Backend implementation (database, auth server, storage, security policies, hosting of the API). Also: checkout/cart, customer accounts, multi-owner roles, stock counting, barcode scanning, multi-branch.
+Anything beyond the Supabase backend already in place (custom APIs, checkout/cart, customer accounts, multi-owner roles, stock counting, barcode scanning, multi-branch).
 
 ### 1.8 Success metrics
-Owner and attendants can complete all user stories in the preview with no guidance; backend developer can integrate by implementing the contract in §5 alone.
+Owner and attendants can complete all user stories with no guidance; the service layer swaps or changes without touching components or pages.
 
 ---
 
@@ -73,9 +73,9 @@ Owner and attendants can complete all user stories in the preview with no guidan
 Browser (React SPA)
   ├─ Pages: Home, Login, Admin
   ├─ AuthContext (session state)
-  └─ services/ (the only layer that talks to a "backend")
-        └─ api/    real implementation by backend dev                      ← plugged in later
-        index.js picks one via VITE_USE_MOCK (default true)
+  └─ services/ (the only layer that talks to the backend)
+       ├─ supabase/   client.js (createClient), mapError.js
+       └─ api/        productsApi + authApi implementations (Supabase)
 ```
 Components never import a backend SDK directly. They call `productsApi` / `authApi`.
 
@@ -114,8 +114,9 @@ src/
 
 ### 2.6 Environment
 ```
-# added by the backend developer at integration time:
-# VITE_API_URL=
+# .env (see .env.example):
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
 ```
 
 ### 2.7 Error handling
@@ -171,17 +172,15 @@ shadcn supplies accessible primitives; the look is custom:
 ┌───────────────────┐
 │     [ image ]     │  4:3, cover, fallback tile
 │ NAME              │  Bebas 26px
-│ description text  │  2-line clamp
-│ [12 pack][5 kg]   │  Badge chips: quantity · weight
-│ [Large][White]    │  size · colour (hidden if empty)
-│            GH₵ 85 │  price pill
+│ [5 kg]            │  Badge: size + unit (hidden if empty)
+│            GH₵ 85 │  price pill ("No price" if unpriced)
 └───────────────────┘
 ```
 
 **Login (`/login`):** centred `Card` on the honey background; email + password (`Form`), Sign in, inline error, back link. 
 
 **Admin (`/admin`):**
-1. "Add item" card: `Form` with name, price, description, quantity, weight, size, colour, image picker with live preview; zod validation messages under fields.
+1. "Add item" card: `Form` with name, price, size, unit (select: g/kg/ml/l/pieces), image picker with live preview; zod validation messages under fields.
 2. Items `Table` (desktop) / stacked rows (mobile): thumbnail, name, current price, inline price input + Save (disabled until changed), Delete (opens `AlertDialog`).
 3. Footer: 
 - Feedback via `sonner` toasts: "Price updated", "Item added", "Item deleted".
@@ -227,23 +226,22 @@ flowchart TD
 
 ---
 
-## 5. Integration Contract (what the backend developer implements)
+## 5. Integration Contract (what the service layer implements)
 
-The frontend depends only on these two modules.
+The frontend depends only on these two modules. The live implementation is Supabase: `products` table, `product-images` storage bucket, Supabase Auth.
 
 ```ts
+type WeightUnit = 'g' | 'kg' | 'ml' | 'l' | 'pieces'
+
 type Product = {
   id: string
   name: string
-  description: string
-  quantity: string      // free text, e.g. "12 pack"
-  weight: string        // e.g. "5 kg"
-  size: string          // e.g. "Large"
-  colour: string        // e.g. "White"
-  price: number         // 2-dp, >= 0
-  image_url: string     // absolute URL or ''
-  created_at?: string   // ISO
-  updated_at?: string   // ISO
+  size?: number           // e.g. 240, 1.5, 500
+  unit?: WeightUnit       // e.g. 'g', 'kg', 'ml', 'l', 'pieces'
+  price: number | null    // 2 d.p. (null if unpriced)
+  image_url: string       // absolute URL or ''
+  created_at?: string     // ISO
+  updated_at?: string     // ISO
 }
 
 type NewProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>
@@ -258,14 +256,14 @@ interface ProductsApi {
 
 interface AuthApi {
   getSession(): Promise<{ email: string } | null>
-  signIn(email: string, password: string): Promise<{ email: string }>   // throws ApiError on failure
+  signIn(email: string, password: string): Promise<{ email: string }>   // throws ApiError('INVALID_CREDENTIALS')
   signOut(): Promise<void>
-  onChange?(cb: (session: { email: string } | null) => void): () => void // optional
+  onChange?(cb: (session: { email: string } | null) => void): () => void // optional; returns unsubscribe
 }
 
-class ApiError extends Error { code: string }   // e.g. 'INVALID_CREDENTIALS', 'NETWORK', 'FORBIDDEN', 'VALIDATION'
+class ApiError extends Error { code: 'INVALID_CREDENTIALS' | 'NETWORK' | 'FORBIDDEN' | 'VALIDATION' | 'UNKNOWN' }
 ```
-Notes for integration: reads are public; writes require the owner session; the frontend already shows error states for `NETWORK`, `FORBIDDEN` and `INVALID_CREDENTIALS`. Anything beyond this contract (storage choice, auth provider, policies) is the backend developer's decision.
+Notes: reads are public (RLS `select` for anon); writes require the owner session (authenticated). Supabase errors are mapped to `ApiError` codes in `services/supabase/mapError.js`; the frontend shows error states for `NETWORK`, `FORBIDDEN` and `INVALID_CREDENTIALS`. The canonical copy of these types is `src/services/contract.d.ts`.
 
 ---
 
@@ -279,7 +277,7 @@ Notes for integration: reads are public; writes require the owner session; the f
 | 5. Admin | Add form (zod), inline price edit, delete dialog, toasts, reset demo data |
 | 6. Polish | Responsive pass at 360 / 768 / 1280, a11y pass, contrast check |
 | 7. Preview release | Deploy static preview for stakeholder review |
-| 8. Integration (later, with backend dev) |  add `services/api/*` implementing §5, smoke-test every user story |
+| 8. Integration | `services/api/*` implements §5 against Supabase; smoke-test every user story |
 
 ### Acceptance checklist (preview)
 - [ ] Search narrows results by name/desc/colour/size/weight/quantity
